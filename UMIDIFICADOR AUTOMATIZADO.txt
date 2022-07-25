@@ -1,0 +1,195 @@
+int segundos = 0;
+int horas = 0;
+int minutos = 0;
+int qtd_usoautv = 0; // uso automarico valeriana
+int qtd_usoautl = 0; // uso automatico lavanda
+
+
+const char* ssid = "Caiote";
+const char* password = "12345678";
+const int led = 4;
+#define RELEL 13 //Pino onde será conectado o  relê que ligará o umidificador DE LAVANDA.
+#define RELEV 16 //Pino onde será conectado o relê que ligará o umidificador DE VALERIANA.
+#define BTVALE 11 // Pino onde será ligado o botao para VALERIANA
+#define BTLAVAN 10 // Pino onde será ligado o botao para LAVANADA
+#include <LiquidCrystal_I2C.h>//Biblioteca do display+I2C PINOS I2C: (SCL=A5 / SDA=A4).
+#include <Wire.h>
+#define endereco  0x27 //Endereço placa I2C: 0x27(Todos os pontos de solda do módulo I2C desconectados).
+#define colunas   20 //Número de colunas do display usado.
+#define linhas    2 //Número de linhas do display usado.
+LiquidCrystal_I2C lcd(endereco, colunas, linhas);//Dados referentes ao LCD.
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+ESP8266WebServer server(80);
+
+void setup(){
+  Serial.begin(115200);
+  pinMode(RELEV,OUTPUT);
+  digitalWrite(RELEV,HIGH);
+  pinMode(RELEL,OUTPUT);  
+  digitalWrite(RELEL,HIGH);
+ 
+  lcd.init(); //Inicia comunicação com o display.
+  lcd.clear(); //Limpa o display.
+  lcd.backlight(); //Liga a iluminação do display.
+ 
+  //DADOS QUE SERÃO MOSTRADOS NO DISPLAY (LCD 20x2):
+  lcd.setCursor(5, 0); //Posiciona o cursor na coluna 5 da linha 0.
+  lcd.print(F("Bem Vindo!"));//Imprime o texto no LCD.
+  lcd.setCursor(2, 1); //Posiciona o cursor na coluna 2 da linha 1.
+  lcd.print(F("À Aromainoterapia "));//Imprime o texto no LCD.
+ 
+  //DADOS QUE SERÃO MOSTRADOS NO MONITOR SERIAL (PC):
+  Serial.println(F("Bem Vindo"));
+  Serial.println(F("À Aromainoterapia"));
+  delay(3000);//Mantém os textos impressos por 3 segundos.
+ 
+  lcd.clear(); // Limpa o display.
+  pinMode(led, OUTPUT);
+  digitalWrite(led, 0);
+  delay(600);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.println("");
+
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  if (MDNS.begin("esp8266")) {
+    Serial.println("MDNS responder started");
+  }
+
+
+
+  server.on("/inline", [](){
+    server.send(200, "text/plain", "this works as well");
+  });
+
+  server.onNotFound(handleNotFound);
+
+  server.on("/", handleRoot);
+  server.on("/H1",Valeriana);
+  server.on("/H2",Lavanda);
+ 
+
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+void loop(){
+    delay(1000);
+    segundos ++;
+   
+
+    Serial.print(horas);
+    Serial.print(":");
+    Serial.print(minutos);
+    Serial.print(":");
+    Serial.print(segundos);
+    Serial.print(" ");
+   
+     
+    if(segundos == 60){
+      minutos++;
+      segundos = 0;
+      }
+    if(minutos == 60){
+      horas ++;
+      minutos = 0;
+      }
+    if (horas == 12 && minutos == 00 && segundos == 0){
+      Valeriana();
+      qtd_usoautv ++;    
+      }  
+    if(horas == 12 && minutos == 03 && segundos == 0){
+      //Lavanda();
+      qtd_usoautl ++;
+      segundos = 0;
+      minutos = 0;
+      horas = 0;
+      }
+    server.handleClient();
+
+     
+}
+
+void Lavanda(){
+    Ligar(RELEL);
+    Serial.print(F(" UMIDIFICADOR LIGADO/LAVANDA    "));//Imprime o texto no monitor serial.
+    lcd.setCursor(0, 1);//Coloca o cursor na coluna 0 da linha 1 do LCD.  
+    lcd.print(F("UMIDIFICADOR LIGADO/LAVANDA"));//Imprime o texto no LCD
+    lcd.setCursor(19, 1);//Coloca o cursor na coluna 19 da linha 1 do LCD.        
+    lcd.print(F(" "));//Imprime um espaço sem caracter no LCD    
+    delay(60000);
+    Desligar(RELEL);
+    lcd.clear(); // Limpa o display.
+    lcd.print(F("UMIDIFICADOR DESLIGADO/LAVANDA"));//Imprime o texto no LCD
+    Serial.print(F(" UMIDIFICADOR DESLIGADO/LAVANDA    "));//Imprime o texto no monitor serial.
+    delay(2000);
+  }
+void Valeriana(){
+    Ligar(RELEV);
+    Serial.print(F(" UMIDIFICADOR LIGADO/VALERIANA    "));//Imprime o texto no monitor serial.
+    lcd.setCursor(0, 1);//Coloca o cursor na coluna 0 da linha 1 do LCD.  
+    lcd.print(F("UMIDIFICADOR LIGADO/VALERIANA"));//Imprime o texto no LCD
+    lcd.setCursor(19, 1);//Coloca o cursor na coluna 19 da linha 1 do LCD.        
+    lcd.print(F(" "));//Imprime um espaço sem caracter no LCD    
+    delay(60000);
+    Desligar(RELEV);
+    lcd.clear(); // Limpa o display.
+    lcd.print(F("UMIDIFICADOR DESLIGADO/VALERIANA"));//Imprime o texto no LCD
+    Serial.print(F(" UMIDIFICADOR DESLIGADO/VALERIANA    "));//Imprime o texto no monitor serial.
+    delay(2000);
+
+  }
+
+   void Ligar(int param){    
+          digitalWrite(param, LOW);// Desligue o relê.
+         
+   }
+    void Desligar(int param){
+          digitalWrite(param, HIGH);// Ligue o relê.
+         
+   }
+
+void handleRoot() {
+  digitalWrite(led, 1);
+
+  String textoHTML;
+
+  textoHTML = "Ola!! Aqui &eacute; o <b>ESP8266</b> falando! ";
+  textoHTML += "Porta A0: ";
+  textoHTML += "<h2>Clique <a href=\"/H1\">AQUI</a> para ligar o rele 1.</h2><br>";
+  textoHTML +=  qtd_usoautv;
+  textoHTML += analogRead(A0);
+   
+  server.send(200, "text/html", textoHTML);
+  digitalWrite(led, 0);
+}
+
+void handleNotFound(){
+  digitalWrite(led, 1);
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET)?"GET":"POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  for (uint8_t i=0; i<server.args(); i++){
+    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+  }
+  server.send(404, "text/plain", message);
+  digitalWrite(led, 0);
+}
